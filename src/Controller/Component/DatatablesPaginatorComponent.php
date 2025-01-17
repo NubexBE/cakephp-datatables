@@ -5,6 +5,7 @@ namespace CakeDC\Datatables\Controller\Component;
 
 use Cake\Controller\Component;
 use Cake\Datasource\ResultSetDecorator;
+use Cake\ORM\ResultSet;
 
 /**
  * DatatablesPaginator component
@@ -19,7 +20,7 @@ class DatatablesPaginatorComponent extends Component
 	protected $_defaultConfig = [
 	];
 
-	public function paginate(object $object, array $settings = []): ResultSetDecorator
+	public function paginate(object $object, array $settings = []): ResultSetDecorator|ResultSet
 	{
 		$request = $this->getController()->getRequest();
 		$dtData = $request->is('post') ? $request->getData() : $request->getQueryParams();
