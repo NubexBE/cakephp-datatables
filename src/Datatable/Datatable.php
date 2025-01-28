@@ -752,7 +752,11 @@ class Datatable
                     if (!empty($parVal) && is_array($parVal)) {
                         $dataPars = [];
                         foreach ($parVal as $v) {
-                            $dataPars[] = "{'id': '" . $v['id'] . "', 'name': '" . addslashes($v['name']) . "'}";
+							$name = $v['name'];
+							if (is_string($name)) {
+								$name = addslashes($v['name']);
+							}
+							$dataPars[] = "{'id': '" . $v['id'] . "', 'name': '" . $name . "'}";
                         }
                         $data = '[' . implode(',', $dataPars) . ']';
                     } else {
