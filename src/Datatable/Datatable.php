@@ -110,6 +110,7 @@ class Datatable
 		],
 		'datepickerFormat' => 'mm/dd/yy',
 		'allowedActionsOnChildSystem' => ['copy'],
+        'allowedActionsForSharedEntities' => ['edit_tenant_details'],
 	];
 
 	protected $Helper;
@@ -777,6 +778,13 @@ class Datatable
 					$link['multitenantCheck'] = '(value, obj) => obj.tenant_id === ' . \App\Utility\Tenant::getId();
 				}
 			}
+
+            if (!empty($this->getConfig('allowedActionsForSharedEntities', []))) {
+                if (in_array($link['url']['action'] ?? null, $this->getConfig('allowedActionsForSharedEntities', []))) {
+                    $link['multitenantCheck'] = '(value, obj) => obj.tenant_id !== ' . \App\Utility\Tenant::getId();
+                }
+            }
+
 			$links[] = $this->processActionLink($link)->render();
 		}
 
