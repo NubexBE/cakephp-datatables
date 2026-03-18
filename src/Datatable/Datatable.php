@@ -852,7 +852,7 @@ class Datatable
 						foreach ($parVal as $v) {
 							$name = $v['name'];
 							if (is_string($name)) {
-								$name = addslashes($v['name']);
+								$name = addslashes(preg_replace('/\s+/', ' ', trim($v['name'])));
 							}
 							$dataPars[] = "{'id': '" . $v['id'] . "', 'name': '" . $name . "'}";
 						}
