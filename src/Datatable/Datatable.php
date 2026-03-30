@@ -781,7 +781,11 @@ class Datatable
 
             if (!empty($this->getConfig('allowedActionsForSharedEntities', []))) {
                 if (in_array($link['url']['action'] ?? null, $this->getConfig('allowedActionsForSharedEntities', []))) {
-                    $link['multitenantCheck'] = '(value, obj) => obj.tenant_id !== ' . \App\Utility\Tenant::getId();
+                    if (\App\Utility\Tenant::isParentTenant()) {
+                        $link['multitenantCheck'] = '(value, obj) => false';
+                    } else {
+                        $link['multitenantCheck'] = '(value, obj) => obj.tenant_id !== ' . \App\Utility\Tenant::getId();
+                    }
                 }
             }
 
