@@ -109,7 +109,7 @@ class Datatable
 			],
 		],
 		'datepickerFormat' => 'mm/dd/yy',
-		'allowedActionsOnChildSystem' => ['copy'],
+		'allowedActionsOnChildSystem' => ['copy', 'pdf'],
         'allowedActionsForSharedEntities' => ['edit_tenant_details'],
 	];
 
