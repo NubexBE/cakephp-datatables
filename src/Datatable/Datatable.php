@@ -327,13 +327,20 @@ class Datatable
 
             const dt = $('#:tagId');
 
+            // Saved filters, sort, page length and page, applied as the initial state so the
+            // first request already uses them
+            const storedFilters = readStoredFilters();
+            const initialState = getInitialState(storedFilters);
+
             dt.DataTable({
+                searchCols: initialState.searchCols,
+                displayStart: initialState.displayStart,
                 orderCellsTop: true,
                 fixedHeader: :fixedHeader,
                 autoWidth: :autoWidth,
                 ajax: await getData(),
                 //searching: false,
-                pageLength: :pageLength,
+                pageLength: initialState.pageLength,
                 processing: :processing,
                 serverSide: :serverSide,
                 //@todo: add option to select the paging type
@@ -362,7 +369,7 @@ class Datatable
                     // Load filters
                     loadFilters(api);
                 },
-                order: :defaultOrder,
+                order: initialState.order,
             });
 
             dt.css(:tableCss);
@@ -380,81 +387,108 @@ class Datatable
                 });
 
                 let apiOrder = api.order();
-                let orderCol = $('#:tagId .filters input, #:tagId .filters select').not('.to').eq(apiOrder[0][0]);
+                let orderColumn = apiOrder.length ? configColumns[apiOrder[0][0]]?.data : null;
 
                 let dataToStringify = {filters};
-                if (orderCol.length && orderCol.data('unique-identifier')) {
-                    let order = [
-                        orderCol.data('unique-identifier'),
-                        apiOrder[0][1]
-                    ];
-                    dataToStringify.order = order;
+                if (orderColumn) {
+                    dataToStringify.order = [orderColumn, apiOrder[0][1]];
                 }
 
                 dataToStringify.page = api.page();
+                dataToStringify.length = api.page.len();
                 dataToStringify.filterVersion = filterVersion;
 
                 localStorage.setItem('filters_:tagId', JSON.stringify(dataToStringify));
             }
 
-            async function loadFilters(api) {
-                let data = JSON.parse(localStorage.getItem('filters_:tagId')) ?? null;
+            function readStoredFilters() {
+                let data = null;
+                try {
+                    data = JSON.parse(localStorage.getItem('filters_:tagId'));
+                } catch (e) {}
 
-                if (data == null) { return; }
+                if (data == null) { return null; }
 
                 // failsafe to reset the table in case of outdated filters
                 if (typeof data.filterVersion === 'undefined' || parseInt(data.filterVersion) < 2) {
                     // remove localstorage without reloading page to prevent potential loop
                     localStorage.removeItem('filters_:tagId');
-                    return;
+                    return null;
                 }
 
-                let orderColIndex = null;
+                return data;
+            }
+
+            function getInitialState(data) {
+                const state = {
+                    // keyed by the column's data, so a stored filter for a removed column is ignored
+                    searchCols: configColumns.map(function (col) {
+                        let value = data?.filters?.[col?.data] ?? '';
+                        // multi-selects are stored as arrays; the live change handler searches "1,2"
+                        if (Array.isArray(value)) {
+                            value = value.join();
+                        }
+                        // an empty date range is stored as "|"
+                        if (value === '|') {
+                            value = '';
+                        }
+                        return {search: value};
+                    }),
+                    order: :defaultOrder,
+                    pageLength: :pageLength,
+                    displayStart: 0,
+                };
+
+                if (data == null) { return state; }
+
+                if (data.order) {
+                    const orderColIndex = configColumns.findIndex(col => col?.data === data.order[0]);
+                    if (orderColIndex !== -1 && ['asc', 'desc'].includes(data.order[1])) {
+                        state.order = [[orderColIndex, data.order[1]]];
+                    }
+                }
+
+                // ignore a stored page length the length menu no longer offers
+                const length = parseInt(data.length);
+                let lengthMenu = :lengthMenu;
+                lengthMenu = Array.isArray(lengthMenu[0]) ? lengthMenu[0] : lengthMenu;
+                if (lengthMenu.length ? lengthMenu.includes(length) : length > 0) {
+                    state.pageLength = length;
+                }
+
+                const page = parseInt(data.page);
+                if (page > 0 && state.pageLength > 0) {
+                    state.displayStart = page * state.pageLength;
+                }
+
+                return state;
+            }
+
+            async function loadFilters(api) {
+                const data = storedFilters;
+
+                if (data == null) { return; }
 
                 $('#:tagId .filters input, #:tagId .filters select').not('.to').each(function (index, item) {
                     if ($(item).data('unique-identifier')) {
-                        let colId = parseInt($(item).data('col-id'));
                         let colUniqueIdentifier = $(item).data('unique-identifier');
 
                         if($(item).hasClass('from datepicker')){
-                            const parts = data.filters[colUniqueIdentifier].split("|");
+                            const parts = (data.filters?.[colUniqueIdentifier] ?? '').split("|");
                             $(item).val(parts[0] ?? null);
                             $(item).next().next().val(parts[1] ?? null);
                         } else {
-                            $(item).val(data.filters[colUniqueIdentifier] ?? null);
-                        }
-                        api.columns(colId).search(data.filters[colUniqueIdentifier] ?? '');
-
-                        if (data.order) {
-                            if (colUniqueIdentifier === data.order[0]){
-                                orderColIndex = colId;
-                            }
+                            $(item).val(data.filters?.[colUniqueIdentifier] ?? null);
                         }
                     }
                 });
 
-                if (orderColIndex !== null) {
-                    let order = [
-                        orderColIndex,
-                        data.order[1]
-                    ];
-                    api.order(order);
+                // the stored page may no longer exist (e.g. records were removed since): show the first page instead;
+                // only now that the inputs are filled, because page() fires 'page', which saves the filters from them
+                const info = api.page.info();
+                if (info.page > 0 && info.page >= info.pages) {
+                    api.page(0).draw('page');
                 }
-
-                const page = parseInt(data.page);
-                if (page > 0) {
-                    // the stored page may no longer exist (e.g. records were removed since): show the first page instead
-                    api.one('draw', function () {
-                        const info = api.page.info();
-                        if (info.page > 0 && info.page >= info.pages) {
-                            api.page(0).draw('page');
-                        }
-                    });
-                    api.page(page);
-                }
-
-                // keep the restored page instead of resetting to the first one
-                api.draw(false);
             }
 
             async function resetFilters(api) {
