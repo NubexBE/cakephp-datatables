@@ -272,7 +272,8 @@ class Datatable
             saveFilters(api);
         });
 
-        api.on('order', function() {
+        // 'order' also fires after every search draw, which resets the table to the first page
+        api.on('order page length', function() {
             saveFilters(api);
         })
 
@@ -390,6 +391,7 @@ class Datatable
                     dataToStringify.order = order;
                 }
 
+                dataToStringify.page = api.page();
                 dataToStringify.filterVersion = filterVersion;
 
                 localStorage.setItem('filters_:tagId', JSON.stringify(dataToStringify));
@@ -439,7 +441,20 @@ class Datatable
                     api.order(order);
                 }
 
-                api.draw();
+                const page = parseInt(data.page);
+                if (page > 0) {
+                    // the stored page may no longer exist (e.g. records were removed since): show the first page instead
+                    api.one('draw', function () {
+                        const info = api.page.info();
+                        if (info.page > 0 && info.page >= info.pages) {
+                            api.page(0).draw('page');
+                        }
+                    });
+                    api.page(page);
+                }
+
+                // keep the restored page instead of resetting to the first one
+                api.draw(false);
             }
 
             async function resetFilters(api) {
